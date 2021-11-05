@@ -27,6 +27,7 @@ task FilterVcfBySampleGenotypeAndAddEvidenceAnnotation {
 
   output {
     File out = "~{outfile}"
+    File out_index = "~{outfile}.tbi"
   }
   command <<<
     set -euo pipefail
@@ -43,6 +44,7 @@ task FilterVcfBySampleGenotypeAndAddEvidenceAnnotation {
         -c CHROM,POS,REF,ALT,EVIDENCE \
         -h header_line.txt \
         ~{vcf_gz} | bgzip -c > ~{outfile}
+    tabix ~{outfile}
   >>>
   runtime {
     cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])

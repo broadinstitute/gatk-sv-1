@@ -44,7 +44,7 @@ EVIDENCE_TYPES = ["RD", "BAF", "PE", "SR"]
 
 # Accepted "passing" filters
 PASSING_FILTERS = ["PASS", "BOTHSIDES_SUPPORT",
-                   "MULTIALLELIC", "HIGH_SR_BACKGROUND"]
+                   "MULTIALLELIC"]
 
 INVALID_CHR2_STR = "invalid_chr2"
 INVALID_END_STR = "invalid_end"
@@ -443,7 +443,7 @@ def get_distributions_by_type(records, variant_types, field, bins, exclude_types
     for record in records:
         type = vu.get_sv_type(record, types_set)
         if type not in exclude_types:
-            val = vu.get_info_field(record, field)
+            val = vu.get_info_field(record, field, singularize=True)
             idx = get_distribution_index(val, bins, num_bins)
             counts[type][idx] += 1
     return counts

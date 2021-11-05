@@ -14,7 +14,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 import svtest.utils.IOUtils as iou
 
 WIDTH = 10.24
-HEIGHT_SCALE = 0.15
+HEIGHT_SCALE = 0.25
 MAX_ROWS_PER_PLOT = 500
 
 
@@ -26,6 +26,8 @@ def main(argv):
     parser.add_argument('metrics_a', type=str)
     parser.add_argument('metrics_b', type=str)
     parser.add_argument('pdf_out', type=str)
+    parser.add_argument('--a-name', type=str, default="metrics_a")
+    parser.add_argument('--b-name', type=str, default="metrics_b")
     parser.add_argument('--sample-list', type=str, default=None)
     parser.add_argument('--changes-only', action='store_true',
                         help='Only plot values that are different')
@@ -41,7 +43,8 @@ def main(argv):
     # Read metric tables and join
     df_a = get_metrics(args.metrics_a)
     df_b = get_metrics(args.metrics_b)
-    df = df_a.join(df_b, how='outer', lsuffix='_a', rsuffix='_b', sort=True)
+    df = df_a.join(df_b, how='outer', lsuffix='_a', rsuffix='_b', sort=True)\
+        .rename(columns={"value_a": args.a_name, "value_b": args.b_name})
 
     # If sample ids are provided, consolidate sample-specific metrics
     if args.sample_list is not None:
@@ -135,6 +138,7 @@ def plot_nonempty_data(df, out_path):
 def plot_rows(df, start, end, pdf):
     df.iloc[start:end].iloc[::-1].plot.barh(figsize=(WIDTH, HEIGHT_SCALE * (max(end - start, 15))))
     plt.xscale('log')
+    plt.legend(bbox_to_anchor=(0, 1.02, 1., 0.102), loc='lower left', ncol=2, borderaxespad=0.)
     plt.tight_layout()
     pdf.savefig()
     plt.close()

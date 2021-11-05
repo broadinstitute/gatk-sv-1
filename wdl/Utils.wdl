@@ -44,6 +44,138 @@ task GetSampleIdsFromVcf {
   }
 }
 
+task GetSampleIdsFromVcfArray {
+  input {
+    Array[File] vcfs
+    String prefix
+    String sv_base_mini_docker
+    RuntimeAttr? runtime_attr_override
+  }
+
+  RuntimeAttr default_attr = object {
+                               cpu_cores: 1,
+                               mem_gb: 0.9,
+                               disk_gb: 2 + ceil(size(vcfs, "GiB")),
+                               boot_disk_gb: 10,
+                               preemptible_tries: 3,
+                               max_retries: 1
+                             }
+  RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+
+  command <<<
+
+    set -eu
+    touch ~{prefix}.txt
+    while read VCF; do
+      bcftools query -l $VCF >> ~{prefix}.txt
+    done < ~{write_lines(vcfs)}
+
+  >>>
+
+  output {
+    File out_file = "~{prefix}.txt"
+    Array[String] out_array = read_lines("~{prefix}.txt")
+  }
+
+  runtime {
+    cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+    memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+    disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+    bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+    docker: sv_base_mini_docker
+    preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+    maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+  }
+}
+
+task GetSampleIdsFromVcfTar {
+  input {
+    File vcf_tar
+    String prefix
+    String sv_base_mini_docker
+    RuntimeAttr? runtime_attr_override
+  }
+
+  RuntimeAttr default_attr = object {
+                               cpu_cores: 1,
+                               mem_gb: 0.9,
+                               disk_gb: 10 + 2 * ceil(size(vcf_tar, "GiB")),
+                               boot_disk_gb: 10,
+                               preemptible_tries: 3,
+                               max_retries: 1
+                             }
+  RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+
+  command <<<
+
+    set -eu
+    mkdir vcfs
+    tar xzf ~{vcf_tar} -C vcfs/
+    for VCF in vcfs/*.vcf.gz; do
+      bcftools query -l $VCF
+    done > ~{prefix}.txt
+
+  >>>
+
+  output {
+    File out_file = "~{prefix}.txt"
+    Array[String] out_array = read_lines("~{prefix}.txt")
+  }
+
+  runtime {
+    cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+    memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+    disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+    bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+    docker: sv_base_mini_docker
+    preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+    maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+  }
+}
+
+task GetSampleIdsFromVcfList {
+  input {
+    File vcf_list
+    String prefix
+    String sv_base_docker
+    RuntimeAttr? runtime_attr_override
+  }
+
+  RuntimeAttr default_attr = object {
+                               cpu_cores: 1,
+                               mem_gb: 0.9,
+                               disk_gb: 100,
+                               boot_disk_gb: 10,
+                               preemptible_tries: 3,
+                               max_retries: 1
+                             }
+  RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+
+  command <<<
+    set -euo pipefail
+    mkdir vcfs
+    cat ~{vcf_list} | gsutil -m cp -I vcfs/
+    touch ~{prefix}.txt
+    for VCF in vcfs/*.vcf.gz; do
+      bcftools query -l $VCF >> ~{prefix}.txt
+    done
+  >>>
+
+  output {
+    File out_file = "~{prefix}.txt"
+  }
+
+  runtime {
+    cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+    memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+    disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+    bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+    docker: sv_base_docker
+    preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+    maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+  }
+}
+
 task CountSamples {
   input {
     File vcf
@@ -357,3 +489,113 @@ task LocalizeCloudFileWithCredentials {
   }
 }
 
+task WriteLines {
+  input {
+    Array[String] lines
+    String output_filename
+    String linux_docker
+  }
+
+  command <<<
+    cat ~{write_lines(lines)} > ~{output_filename}
+  >>>
+
+  output {
+    File out = "~{output_filename}"
+  }
+
+  runtime {
+    cpu: 1
+    memory: "0.9 GiB"
+    disks: "local-disk 10 HDD"
+    docker: linux_docker
+    preemptible: 3
+    maxRetries: 1
+  }
+}
+
+task UntarFiles {
+  input {
+    File tar
+    String? glob_suffix
+    String linux_docker
+    RuntimeAttr? runtime_attr_override
+  }
+
+  RuntimeAttr default_attr = object {
+                               cpu_cores: 1,
+                               mem_gb: 1.0,
+                               disk_gb: ceil(10 + 2 * size(tar, "GB")),
+                               boot_disk_gb: 10,
+                               preemptible_tries: 3,
+                               max_retries: 1
+                             }
+  RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+
+  String glob_arg = "out/*" + glob_suffix
+
+  command <<<
+    set -euo pipefail
+    mkdir out
+    tar xzf ~{tar} -C out/
+  >>>
+
+  output {
+    Array[File] out = glob("~{glob_arg}")
+  }
+
+  runtime {
+    cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+    memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+    disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+    bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+    docker: linux_docker
+    preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+    maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+  }
+}
+
+task CombineTars {
+  input {
+    File tar1
+    File tar2
+    String linux_docker
+    RuntimeAttr? runtime_attr_override
+  }
+
+  String output_filename = basename(tar2)
+
+  RuntimeAttr default_attr = object {
+                               cpu_cores: 1,
+                               mem_gb: 1.0,
+                               disk_gb: ceil(10 + 3 * size([tar1, tar2], "GB")),
+                               boot_disk_gb: 10,
+                               preemptible_tries: 3,
+                               max_retries: 1
+                             }
+  RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+
+  command <<<
+    set -e
+    # Not the most efficient space-wise, but concatenating compressed tars requires that -i be used
+    # when decompressing, so this is safer.
+    mkdir tmp
+    tar xzf ~{tar1} -C tmp/
+    tar xzf ~{tar2} -C tmp/
+    tar czf ~{output_filename} -C tmp/ .
+  >>>
+
+  output {
+    File out = "~{output_filename}"
+  }
+
+  runtime {
+    cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+    memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+    disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+    bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+    docker: linux_docker
+    preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+    maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+  }
+}
