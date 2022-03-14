@@ -1,34 +1,50 @@
 version 1.0
 
-import "PETest.wdl" as pet
 import "RDTest.wdl" as rdt
-import "SRTest.wdl" as srt
 import "BAFTest.wdl" as baft
 import "TasksGenerateBatchMetrics.wdl" as tasksbatchmetrics
 import "Utils.wdl" as util
 import "GenerateBatchMetricsMetrics.wdl" as metrics
+import "GeneratePESRMetrics.wdl" as pesr_metrics
 
 workflow GenerateBatchMetrics {
   input {
     String batch
 
-    File? depth_vcf
+    File depth_vcf
     File? melt_vcf
     File? scramble_vcf
-    File? delly_vcf
     File? wham_vcf
     File? manta_vcf
 
     File baf_metrics
-    File discfile
+    File pe_file
     File coveragefile
-    File splitfile
+    File sr_file
     File medianfile
 
-    Int BAF_split_size
-    Int RD_split_size
-    Int PE_split_size
-    Int SR_split_size
+    File mean_coverage_file
+    File ploidy_table
+
+    Int records_per_shard_pesr
+
+    Int? pe_inner_window
+    Int? pe_outer_window
+    Int? sr_window
+    String? additional_gatk_args_pesr_metrics
+
+    String chr_x
+    String chr_y
+
+    Float? java_mem_fraction_pesr_metrics
+
+    String gatk_docker
+    String sv_base_mini_docker
+    String sv_pipeline_docker
+    RuntimeAttr? runtime_attr_scatter_pesr_metrics
+    RuntimeAttr? runtime_attr_agg_pesr
+    RuntimeAttr? runtime_override_concat_pesr_metrics
+
     Int common_cnv_size_cutoff
 
     File rmsk
@@ -37,7 +53,6 @@ workflow GenerateBatchMetrics {
     File autosome_contigs
     File allosome_contigs
     File ref_dict
-    String? chr_x
 
     # Module metrics parameters
     # Run module metrics workflow at the end - on by default
@@ -70,12 +85,12 @@ workflow GenerateBatchMetrics {
     RuntimeAttr? runtime_attr_get_male_only
   }
 
-  Array[String] algorithms = ["depth", "melt", "scramble", "delly", "wham", "manta"]
-  Array[File?] vcfs = [depth_vcf, melt_vcf, scramble_vcf, delly_vcf, wham_vcf, manta_vcf]
+  Array[String] algorithms = ["depth", "melt", "scramble", "wham", "manta"]
+  Array[File?] vcfs = [depth_vcf, melt_vcf, scramble_vcf, wham_vcf, manta_vcf]
 
   call util.GetSampleIdsFromVcf {
     input:
-      vcf = select_first(vcfs),
+      vcf = select_first(depth_vcf),
       sv_base_mini_docker = sv_base_mini_docker,
       runtime_attr_override = runtime_attr_ids_from_vcf
   }
@@ -92,9 +107,33 @@ workflow GenerateBatchMetrics {
   call GetSampleLists {
     input:
       ped_file = SubsetPedFile.ped_subset_file,
-      samples = GetSampleIdsFromVcf.out_array,
+      samples_list = GetSampleIdsFromVcf.out_file,
       sv_base_docker = sv_base_docker,
       runtime_attr_override = runtime_attr_sample_list
+  }
+
+  call pesr_metrics.GeneratePESRMetrics as MantaPESR {
+    input:
+      vcf=manta_vcf,
+      prefix="~{batch}.generate_pesr_metrics.manta",
+      mean_coverage_file=mean_coverage_file,
+      ploidy_table=ploidy_table,
+      pe_file=pe_file,
+      sr_file=sr_file,
+      records_per_shard=records_per_shard_pesr,
+      pe_inner_window=pe_inner_window,
+      pe_outer_window=pe_outer_window,
+      sr_window=sr_window,
+      additional_gatk_args=additional_gatk_args_pesr_metrics,
+      chr_x=chr_x,
+      chr_y=chr_y,
+      java_mem_fraction=java_mem_fraction_pesr_metrics,
+      gatk_docker=gatk_docker,
+      sv_base_mini_docker=sv_base_mini_docker,
+      sv_pipeline_docker=sv_pipeline_docker,
+      runtime_attr_scatter=runtime_attr_scatter_pesr_metrics,
+      runtime_attr_agg_pesr=runtime_attr_agg_pesr,
+      runtime_override_concat=runtime_override_concat_pesr_metrics
   }
 
   scatter (i in range(length(algorithms))) {
@@ -150,7 +189,7 @@ workflow GenerateBatchMetrics {
             split_size = BAF_split_size,
             algorithm = algorithm,
             batch = batch,
-            samples = GetSampleIdsFromVcf.out_array,
+            samples_list = GetSampleIdsFromVcf.out_file,
             linux_docker = linux_docker,
             sv_pipeline_docker = sv_pipeline_docker,
             runtime_attr_baftest = runtime_attr_baftest,
@@ -293,7 +332,7 @@ workflow GenerateBatchMetrics {
 task GetSampleLists {
   input {
     File ped_file
-    Array[String] samples
+    File samples_list
     String sv_base_docker
     RuntimeAttr? runtime_attr_override
   }
@@ -308,8 +347,6 @@ task GetSampleLists {
   }
   RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
 
-  File samples_list = write_lines(samples)
-
   output {
     File male_samples = "male.list"
     File female_samples = "female.list"
@@ -320,13 +357,12 @@ task GetSampleLists {
     set -eu
     awk -v sex=1 '($5==sex) {print $2}' ~{ped_file} > ped_males.list
     awk -v sex=2 '($5==sex) {print $2}' ~{ped_file} > ped_females.list
-    cat ~{samples_list} > samples.list
 
     python3 <<CODE
     with open("ped_males.list",'r') as ped_m, open("ped_females.list",'r') as ped_f:
       male_samples = set([x.strip() for x in ped_m.readlines() if x.strip()])
       female_samples = set([x.strip() for x in ped_f.readlines() if x.strip()])
-      with open("male.list", 'w') as samples_m, open("female.list",'w') as samples_f, open("samples.list",'r') as samples:
+      with open("male.list", 'w') as samples_m, open("female.list",'w') as samples_f, open("~{samples_list}",'r') as samples:
         for line in samples:
           if line.strip():
             if (line.strip() in male_samples):

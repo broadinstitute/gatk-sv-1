@@ -8,13 +8,9 @@ workflow GeneratePESRMetrics {
         String prefix
 
         File mean_coverage_file
+        File ploidy_table
         File? pe_file
         File? sr_file
-
-        File medianfile
-        File ped_file
-        File male_samples
-        File female_samples
 
         Int records_per_shard
 
@@ -23,10 +19,12 @@ workflow GeneratePESRMetrics {
         Int? sr_window
         String? additional_gatk_args
 
+        String chr_x
+        String chr_y
+
         Float? java_mem_fraction
 
         String gatk_docker
-        String linux_docker
         String sv_base_mini_docker
         String sv_pipeline_docker
         RuntimeAttr? runtime_attr_scatter
@@ -49,8 +47,11 @@ workflow GeneratePESRMetrics {
                 vcf = ScatterVcf.shards[i],
                 output_prefix = "~{prefix}.aggregate.shard_~{i}",
                 mean_coverage_file = mean_coverage_file,
+                ploidy_table=ploidy_table,
                 pe_file = pe_file,
                 sr_file = sr_file,
+                chr_x = chr_x,
+                chr_y = chr_y,
                 pe_inner_window = pe_inner_window,
                 pe_outer_window = pe_outer_window,
                 sr_window = sr_window,
@@ -61,7 +62,7 @@ workflow GeneratePESRMetrics {
         }
     }
 
-    call MiniTasks.ConcatVcfs as ConcatCleanedVcfs {
+    call MiniTasks.ConcatVcfs {
         input:
             vcfs=AggregatePESREvidence.out,
             vcfs_idx=AggregatePESREvidence.out_index,
@@ -72,8 +73,8 @@ workflow GeneratePESRMetrics {
     }
 
     output {
-        File stats = MergeStats.merged_stats
-        File? stats_common = MergeStatsCommon.merged_stats
+        File stats = ConcatVcfs.concat_vcf
+        File? stats_common = ConcatVcfs.concat_vcf_idx
     }
 }
 
@@ -84,8 +85,12 @@ task AggregatePESREvidence {
         String output_prefix
 
         File mean_coverage_file
+        File ploidy_table
         File pe_file
         File sr_file
+
+        String chr_x
+        String chr_y
 
         Int? pe_inner_window
         Int? pe_outer_window
@@ -124,10 +129,10 @@ task AggregatePESREvidence {
         set -euo pipefail
 
         function getJavaMem() {
-        # get JVM memory in MiB by getting total memory from /proc/meminfo
-        # and multiplying by java_mem_fraction
-        cat /proc/meminfo \
-            | awk -v MEM_FIELD="$1" '{
+            # get JVM memory in MiB by getting total memory from /proc/meminfo
+            # and multiplying by java_mem_fraction
+            cat /proc/meminfo \
+                | awk -v MEM_FIELD="$1" '{
                     f[substr($1, 1, length($1)-1)] = $2
                 } END {
                     printf "%dM", f[MEM_FIELD] * ~{default="0.85" java_mem_fraction} / 1024
@@ -140,6 +145,9 @@ task AggregatePESREvidence {
             -V ~{vcf} \
             -O ~{output_prefix}.vcf.gz \
             --sample-coverage ~{mean_coverage_file} \
+            --ploidy-table ~{ploidy_table} \
+            --chr-x ~{chr_x} \
+            --chr-y ~{chr_y} \
             ~{"--discordant-pairs-file " + pe_file} \
             ~{"--split-reads-file " + sr_file} \
             ~{"--pe-inner-window " + pe_inner_window} \
