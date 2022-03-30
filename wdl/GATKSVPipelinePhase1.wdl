@@ -189,6 +189,7 @@ workflow GATKSVPipelinePhase1 {
     RuntimeAttr? runtime_attr_prepare_pesr_vcfs_cluster_batch
     RuntimeAttr? runtime_attr_svcluster_manta_cluster_batch
     RuntimeAttr? runtime_attr_svcluster_melt_cluster_batch
+    RuntimeAttr? runtime_attr_svcluster_scramble_cluster_batch
     RuntimeAttr? runtime_attr_svcluster_wham_cluster_batch
     RuntimeAttr? runtime_attr_svcluster_scramble_cluster_batch
     RuntimeAttr? runtime_override_concat_vcfs_pesr_cluster_batch
@@ -409,6 +410,7 @@ workflow GATKSVPipelinePhase1 {
       runtime_attr_prepare_pesr_vcfs=runtime_attr_prepare_pesr_vcfs_cluster_batch,
       runtime_attr_svcluster_manta=runtime_attr_svcluster_manta_cluster_batch,
       runtime_attr_svcluster_melt=runtime_attr_svcluster_melt_cluster_batch,
+      runtime_attr_svcluster_scramble=runtime_attr_svcluster_scramble_cluster_batch,
       runtime_attr_svcluster_wham=runtime_attr_svcluster_wham_cluster_batch,
       runtime_attr_svcluster_scramble=runtime_attr_svcluster_scramble_cluster_batch,
       runtime_override_concat_vcfs_pesr=runtime_override_concat_vcfs_pesr_cluster_batch,
@@ -516,7 +518,7 @@ workflow GATKSVPipelinePhase1 {
 
     File merged_dels = GatherBatchEvidence.merged_dels
     File merged_dups = GatherBatchEvidence.merged_dups
-    
+
     File? std_manta_vcf_tar = GatherBatchEvidence.std_manta_vcf_tar
     File? std_melt_vcf_tar = GatherBatchEvidence.std_melt_vcf_tar
     File? std_scramble_vcf_tar = GatherBatchEvidence.std_scramble_vcf_tar

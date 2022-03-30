@@ -565,11 +565,11 @@ workflow GatherBatchEvidence {
     File cnmops_large_dup_index = CNMOPSLarge.Dup_idx
 
     File median_cov = MedianCov.medianCov
-
+    
     File? std_manta_vcf_tar = PreprocessPESR.std_manta_vcf_tar
     File? std_melt_vcf_tar = PreprocessPESR.std_melt_vcf_tar
-    File? std_wham_vcf_tar = PreprocessPESR.std_wham_vcf_tar
     File? std_scramble_vcf_tar = PreprocessPESR.std_scramble_vcf_tar
+    File? std_wham_vcf_tar = PreprocessPESR.std_wham_vcf_tar
 
     File? PE_stats = MatrixQC.PE_stats
     File? RD_stats = MatrixQC.RD_stats

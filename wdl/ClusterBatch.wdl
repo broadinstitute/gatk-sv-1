@@ -70,6 +70,7 @@ workflow ClusterBatch {
     RuntimeAttr? runtime_attr_prepare_pesr_vcfs
     RuntimeAttr? runtime_attr_svcluster_manta
     RuntimeAttr? runtime_attr_svcluster_melt
+    RuntimeAttr? runtime_attr_svcluster_scramble
     RuntimeAttr? runtime_attr_svcluster_wham
     RuntimeAttr? runtime_attr_svcluster_scramble
     RuntimeAttr? runtime_override_concat_vcfs_pesr
@@ -209,6 +210,7 @@ workflow ClusterBatch {
         gatk_to_svtk_script=gatk_to_svtk_script,
         exclude_intervals=pesr_exclude_intervals,
         contig_list=contig_list,
+        contig_subset_list=contig_subset_list,
         pesr_interval_overlap=pesr_interval_overlap,
         pesr_breakend_window=pesr_breakend_window,
         clustering_algorithm=pesr_clustering_algorithm,
