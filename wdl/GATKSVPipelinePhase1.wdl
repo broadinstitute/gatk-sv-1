@@ -516,11 +516,11 @@ workflow GATKSVPipelinePhase1 {
 
     File merged_dels = GatherBatchEvidence.merged_dels
     File merged_dups = GatherBatchEvidence.merged_dups
-
+    
     File? std_manta_vcf_tar = GatherBatchEvidence.std_manta_vcf_tar
     File? std_melt_vcf_tar = GatherBatchEvidence.std_melt_vcf_tar
-    File? std_wham_vcf_tar = GatherBatchEvidence.std_wham_vcf_tar
     File? std_scramble_vcf_tar = GatherBatchEvidence.std_scramble_vcf_tar
+    File? std_wham_vcf_tar = GatherBatchEvidence.std_wham_vcf_tar
 
     File? metrics_file_batchevidence = GatherBatchEvidence.metrics_file_batchevidence
 
