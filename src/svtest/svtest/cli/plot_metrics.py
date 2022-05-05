@@ -31,6 +31,8 @@ def main(argv):
     parser.add_argument('--sample-list', type=str, default=None)
     parser.add_argument('--changes-only', action='store_true',
                         help='Only plot values that are different')
+    parser.add_argument('--linear', action='store_true',
+                        help='Plot linear scale [default log]')
     parser.add_argument('--metrics-out', type=str,
                         help='Write plotted metrics to tsv', default=None)
 
@@ -60,7 +62,7 @@ def main(argv):
         df.to_csv(args.metrics_out, sep='\t')
 
     # Plot
-    plot_data(df, args.pdf_out)
+    plot_data(df, args.pdf_out, args.linear)
 
 
 def consolidate_sample_metrics(df, samples):
@@ -104,11 +106,11 @@ def get_metrics(path):
     return df.set_index("name")
 
 
-def plot_data(df, out_path):
+def plot_data(df, out_path, linear):
     if df.size == 0:
         plot_empty_data()
     else:
-        plot_nonempty_data(df, out_path)
+        plot_nonempty_data(df, out_path, linear)
 
 
 def plot_empty_data():
@@ -125,19 +127,20 @@ def plot_empty_data():
             transform=ax.transAxes)
 
 
-def plot_nonempty_data(df, out_path):
+def plot_nonempty_data(df, out_path, linear):
     num_rows = df.index.size
     num_plots = math.ceil(num_rows / float(MAX_ROWS_PER_PLOT))
     with PdfPages(out_path) as pdf:
         for i in range(num_plots):
             start = i * MAX_ROWS_PER_PLOT
             end = min((i + 1) * MAX_ROWS_PER_PLOT + 1, num_rows)
-            plot_rows(df, start, end, pdf)
+            plot_rows(df, start, end, pdf, linear)
 
 
-def plot_rows(df, start, end, pdf):
+def plot_rows(df, start, end, pdf, linear):
     df.iloc[start:end].iloc[::-1].plot.barh(figsize=(WIDTH, HEIGHT_SCALE * (max(end - start, 15))))
-    plt.xscale('log')
+    if not linear:
+        plt.xscale('log')
     plt.legend(bbox_to_anchor=(0, 1.02, 1., 0.102), loc='lower left', ncol=2, borderaxespad=0.)
     plt.tight_layout()
     pdf.savefig()

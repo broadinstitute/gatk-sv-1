@@ -158,7 +158,7 @@ workflow GatherBatchEvidence {
     File? baseline_merged_dels
     File? baseline_merged_dups
     File? baseline_median_cov
-
+    
     # Runtime parameters
     String sv_base_mini_docker
     String sv_base_docker
@@ -565,7 +565,7 @@ workflow GatherBatchEvidence {
     File cnmops_large_dup_index = CNMOPSLarge.Dup_idx
 
     File median_cov = MedianCov.medianCov
-    
+
     File? std_manta_vcf_tar = PreprocessPESR.std_manta_vcf_tar
     File? std_melt_vcf_tar = PreprocessPESR.std_melt_vcf_tar
     File? std_scramble_vcf_tar = PreprocessPESR.std_scramble_vcf_tar
