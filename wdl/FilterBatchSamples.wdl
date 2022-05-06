@@ -99,10 +99,12 @@ workflow FilterBatchSamples {
       runtime_attr_override = runtime_attr_filter_samples
   }
 
+  Array[File] pesr_vcfs_no_outliers = select_all([ExcludeOutliers.vcf_no_outliers[0], ExcludeOutliers.vcf_no_outliers[1], ExcludeOutliers.vcf_no_outliers[2], ExcludeOutliers.vcf_no_outliers[3], ExcludeOutliers.vcf_no_outliers[4]])
+  Array[File] pesr_vcfs_no_outliers_index = select_all([ExcludeOutliers.vcf_no_outliers_index[0], ExcludeOutliers.vcf_no_outliers_index[1], ExcludeOutliers.vcf_no_outliers_index[2], ExcludeOutliers.vcf_no_outliers_index[3], ExcludeOutliers.vcf_no_outliers_index[4]])
   call tasks_mcv.ConcatVcfs as MergePesrVcfs {
     input:
-      vcfs=select_all(ExcludeOutliers.vcf_no_outliers),
-      vcfs_idx=select_all(ExcludeOutliers.vcf_no_outliers_index),
+      vcfs=pesr_vcfs_no_outliers,
+      vcfs_idx=pesr_vcfs_no_outliers_index,
       allow_overlaps=true,
       outfile_prefix="~{batch}.filtered_pesr_merged",
       sv_base_mini_docker=sv_base_mini_docker,
