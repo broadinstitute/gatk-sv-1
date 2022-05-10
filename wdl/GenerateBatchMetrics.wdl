@@ -17,10 +17,10 @@ workflow GenerateBatchMetrics {
     File? wham_vcf
     File? manta_vcf
 
-    File baf_metrics
     File pe_file
-    File coveragefile
     File sr_file
+    File baf_file
+    File coveragefile
     File medianfile
 
     File mean_coverage_file
@@ -28,9 +28,6 @@ workflow GenerateBatchMetrics {
 
     Int records_per_shard_pesr
 
-    Int? pe_inner_window
-    Int? pe_outer_window
-    Int? sr_window
     String? additional_gatk_args_pesr_metrics
 
     String chr_x
@@ -85,12 +82,9 @@ workflow GenerateBatchMetrics {
     RuntimeAttr? runtime_attr_get_male_only
   }
 
-  Array[String] algorithms = ["depth", "melt", "scramble", "wham", "manta"]
-  Array[File?] vcfs = [depth_vcf, melt_vcf, scramble_vcf, wham_vcf, manta_vcf]
-
   call util.GetSampleIdsFromVcf {
     input:
-      vcf = select_first(depth_vcf),
+      vcf = depth_vcf,
       sv_base_mini_docker = sv_base_mini_docker,
       runtime_attr_override = runtime_attr_ids_from_vcf
   }
@@ -112,28 +106,73 @@ workflow GenerateBatchMetrics {
       runtime_attr_override = runtime_attr_sample_list
   }
 
-  call pesr_metrics.GeneratePESRMetrics as MantaPESR {
-    input:
-      vcf=manta_vcf,
-      prefix="~{batch}.generate_pesr_metrics.manta",
-      mean_coverage_file=mean_coverage_file,
-      ploidy_table=ploidy_table,
-      pe_file=pe_file,
-      sr_file=sr_file,
-      records_per_shard=records_per_shard_pesr,
-      pe_inner_window=pe_inner_window,
-      pe_outer_window=pe_outer_window,
-      sr_window=sr_window,
-      additional_gatk_args=additional_gatk_args_pesr_metrics,
-      chr_x=chr_x,
-      chr_y=chr_y,
-      java_mem_fraction=java_mem_fraction_pesr_metrics,
-      gatk_docker=gatk_docker,
-      sv_base_mini_docker=sv_base_mini_docker,
-      sv_pipeline_docker=sv_pipeline_docker,
-      runtime_attr_scatter=runtime_attr_scatter_pesr_metrics,
-      runtime_attr_agg_pesr=runtime_attr_agg_pesr,
-      runtime_override_concat=runtime_override_concat_pesr_metrics
+  if (defined(manta_vcf)) {
+    call pesr_metrics.GeneratePESRBAFMetrics as GenerateManta {
+      input:
+        vcf=select_first([manta_vcf]),
+        prefix="~{batch}.generate_pesr_metrics.manta",
+        mean_coverage_file=mean_coverage_file,
+        ploidy_table=ploidy_table,
+        pe_file=pe_file,
+        sr_file=sr_file,
+        baf_file=baf_file,
+        records_per_shard=records_per_shard_pesr,
+        additional_gatk_args=additional_gatk_args_pesr_metrics,
+        chr_x=chr_x,
+        chr_y=chr_y,
+        java_mem_fraction=java_mem_fraction_pesr_metrics,
+        gatk_docker=gatk_docker,
+        sv_base_mini_docker=sv_base_mini_docker,
+        sv_pipeline_docker=sv_pipeline_docker,
+        runtime_attr_scatter=runtime_attr_scatter_pesr_metrics,
+        runtime_attr_agg_pesr=runtime_attr_agg_pesr,
+        runtime_override_concat=runtime_override_concat_pesr_metrics
+    }
+  }
+
+  if (defined(wham_vcf)) {
+    call pesr_metrics.GeneratePESRBAFMetrics as GenerateWham {
+      input:
+        vcf=select_first([wham_vcf]),
+        prefix="~{batch}.generate_pesr_metrics.wham",
+        mean_coverage_file=mean_coverage_file,
+        ploidy_table=ploidy_table,
+        pe_file=pe_file,
+        sr_file=sr_file,
+        records_per_shard=records_per_shard_pesr,
+        additional_gatk_args=additional_gatk_args_pesr_metrics,
+        chr_x=chr_x,
+        chr_y=chr_y,
+        java_mem_fraction=java_mem_fraction_pesr_metrics,
+        gatk_docker=gatk_docker,
+        sv_base_mini_docker=sv_base_mini_docker,
+        sv_pipeline_docker=sv_pipeline_docker,
+        runtime_attr_scatter=runtime_attr_scatter_pesr_metrics,
+        runtime_attr_agg_pesr=runtime_attr_agg_pesr,
+        runtime_override_concat=runtime_override_concat_pesr_metrics
+    }
+  }
+
+  if (defined(melt_vcf)) {
+    call pesr_metrics.GeneratePESRBAFMetrics as GenerateMelt {
+      input:
+        vcf=select_first([melt_vcf]),
+        prefix="~{batch}.generate_pesr_metrics.melt",
+        mean_coverage_file=mean_coverage_file,
+        ploidy_table=ploidy_table,
+        sr_file=sr_file,
+        records_per_shard=records_per_shard_pesr,
+        additional_gatk_args=additional_gatk_args_pesr_metrics,
+        chr_x=chr_x,
+        chr_y=chr_y,
+        java_mem_fraction=java_mem_fraction_pesr_metrics,
+        gatk_docker=gatk_docker,
+        sv_base_mini_docker=sv_base_mini_docker,
+        sv_pipeline_docker=sv_pipeline_docker,
+        runtime_attr_scatter=runtime_attr_scatter_pesr_metrics,
+        runtime_attr_agg_pesr=runtime_attr_agg_pesr,
+        runtime_override_concat=runtime_override_concat_pesr_metrics
+    }
   }
 
   scatter (i in range(length(algorithms))) {

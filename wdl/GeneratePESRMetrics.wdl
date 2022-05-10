@@ -11,12 +11,10 @@ workflow GeneratePESRMetrics {
         File ploidy_table
         File? pe_file
         File? sr_file
+        File? baf_file
 
         Int records_per_shard
 
-        Int? pe_inner_window
-        Int? pe_outer_window
-        Int? sr_window
         String? additional_gatk_args
 
         String chr_x
@@ -42,7 +40,7 @@ workflow GeneratePESRMetrics {
     }
 
     scatter ( i in range(length(ScatterVcf.shards)) ) {
-        call AggregatePESREvidence {
+        call Aggregate {
             input:
                 vcf = ScatterVcf.shards[i],
                 output_prefix = "~{prefix}.aggregate.shard_~{i}",
@@ -50,11 +48,9 @@ workflow GeneratePESRMetrics {
                 ploidy_table=ploidy_table,
                 pe_file = pe_file,
                 sr_file = sr_file,
+                baf_file = baf_file,
                 chr_x = chr_x,
                 chr_y = chr_y,
-                pe_inner_window = pe_inner_window,
-                pe_outer_window = pe_outer_window,
-                sr_window = sr_window,
                 additional_args=additional_gatk_args,
                 java_mem_fraction = java_mem_fraction,
                 gatk_docker = gatk_docker,
@@ -64,10 +60,10 @@ workflow GeneratePESRMetrics {
 
     call MiniTasks.ConcatVcfs {
         input:
-            vcfs=AggregatePESREvidence.out,
-            vcfs_idx=AggregatePESREvidence.out_index,
-            allow_overlaps=true,
-            outfile_prefix="~{cohort_name}.aggregate_pesr",
+            vcfs=Aggregate.out,
+            vcfs_idx=Aggregate.out_index,
+            naive=true,
+            outfile_prefix="~{cohort_name}.aggregate",
             sv_base_mini_docker=sv_base_mini_docker,
             runtime_attr_override=runtime_override_concat
     }
@@ -79,22 +75,20 @@ workflow GeneratePESRMetrics {
 }
 
 
-task AggregatePESREvidence {
+task Aggregate {
     input {
         File vcf
         String output_prefix
 
         File mean_coverage_file
         File ploidy_table
-        File pe_file
-        File sr_file
+        File? pe_file
+        File? sr_file
+        File? baf_file
 
         String chr_x
         String chr_y
 
-        Int? pe_inner_window
-        Int? pe_outer_window
-        Int? sr_window
         String? additional_args
 
         Float? java_mem_fraction
@@ -150,9 +144,7 @@ task AggregatePESREvidence {
             --chr-y ~{chr_y} \
             ~{"--discordant-pairs-file " + pe_file} \
             ~{"--split-reads-file " + sr_file} \
-            ~{"--pe-inner-window " + pe_inner_window} \
-            ~{"--pe-outer-window " + pe_outer_window} \
-            ~{"--sr-window " + sr_window} \
+            ~{"--baf-file " + baf_file} \
             ~{additional_args}
     >>>
     runtime {
