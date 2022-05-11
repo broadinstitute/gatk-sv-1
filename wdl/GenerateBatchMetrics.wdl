@@ -175,6 +175,28 @@ workflow GenerateBatchMetrics {
     }
   }
 
+  if (defined(scramble_vcf)) {
+    call pesr_metrics.GeneratePESRBAFMetrics as GenerateScramble {
+      input:
+        vcf=select_first([scramble_vcf]),
+        prefix="~{batch}.generate_pesr_metrics.scramble",
+        mean_coverage_file=mean_coverage_file,
+        ploidy_table=ploidy_table,
+        sr_file=sr_file,
+        records_per_shard=records_per_shard_pesr,
+        additional_gatk_args=additional_gatk_args_pesr_metrics,
+        chr_x=chr_x,
+        chr_y=chr_y,
+        java_mem_fraction=java_mem_fraction_pesr_metrics,
+        gatk_docker=gatk_docker,
+        sv_base_mini_docker=sv_base_mini_docker,
+        sv_pipeline_docker=sv_pipeline_docker,
+        runtime_attr_scatter=runtime_attr_scatter_pesr_metrics,
+        runtime_attr_agg_pesr=runtime_attr_agg_pesr,
+        runtime_override_concat=runtime_override_concat_pesr_metrics
+    }
+  }
+
   scatter (i in range(length(algorithms))) {
     
     if (defined(vcfs[i])) {

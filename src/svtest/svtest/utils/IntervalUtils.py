@@ -22,7 +22,7 @@ def create_trees_from_records(records, variant_types, contigs):
         if type == 'INS' or type == 'BND':
             length = 0
         else:
-            length = vu.get_record_length(record)
+            length = max(0, vu.get_record_length(record))
         trees[type][contig].addi(
             record.start, record.start + length + 1)
     return trees
