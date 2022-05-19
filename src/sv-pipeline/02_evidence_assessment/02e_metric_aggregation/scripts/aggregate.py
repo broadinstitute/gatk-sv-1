@@ -8,7 +8,6 @@
 import argparse
 from collections import deque, defaultdict
 import numpy as np
-import scipy.stats as ss
 import pandas as pd
 import pysam
 import pybedtools as pbt
@@ -48,44 +47,20 @@ def process_rdtest(rdtest):
 
 
 def process_srtest(srtest):
-    metrics = 'log_pval called_median bg_median bg_frac pos'.split()
-
-    # remove -0.0 (temporary, should fix in SR-test)
-    srtest.log_pval = srtest.log_pval.abs()
-
-    srtest.pos = srtest.pos.astype(int)
-
-    # force one-sided (temporary, should fix in SR-test)
-    srtest.loc[srtest.bg_median > srtest.called_median, 'log_pval'] = 0
-
-    srtest = srtest.pivot_table(index='name', values=metrics, columns='coord')
+    metrics = 'SRQ SRCS pos'.split()
+    srtest = srtest.pivot(index='name', values=metrics, columns='coord')
     srtest.columns = ['_'.join(col[::-1]).strip()
                       for col in srtest.columns.values]
     srtest = srtest.reset_index()
-
     return srtest
 
 
 def process_petest(petest):
-    # remove -0.0 (temporary, should fix in PE-test)
-    petest.log_pval = petest.log_pval.abs()
-
-    # force one-sided (temporary, should fix in PE-test)
-    petest.loc[petest.bg_median > petest.called_median, 'log_pval'] = 0
-
     return petest
 
 
 def process_baftest(baftest):
-    skip_cols = 'chrom start end samples svtype'.split()
-    baftest = baftest.drop(skip_cols, axis=1)
-
-    baftest['KS_log_pval'] = (- np.log10(baftest.KS_pval)).abs()
-    baftest['del_loglik'] = -baftest.del_loglik
-
-    repl = 'Potential ROHregion or reference error'
-    baftest.delstat = baftest.delstat.replace(repl, 'Ref_error')
-
+    baftest['BAFDEL'] = -baftest.BAFDEL
     return baftest
 
 
@@ -102,67 +77,11 @@ def preprocess(df, dtype):
         return df
 
 
-def _is_parent(s):
-    return s.endswith('fa') or s.endswith('mo')
-
-
-def _is_child(s):
-    return s.endswith('p1') or s.endswith('s1') or s.endswith('pb')
-
-
-def fam_info_readin(fam_file):
-    fin = open(fam_file)
-    # samp_pedi_hash = {}
-    [fam, samp, fa, mo] = [[], [], [], []]
-    for line in fin:
-        pin = line.strip().split()
-        fam.append(pin[0])
-        samp.append(pin[1])
-        fa.append(pin[2])
-        mo.append(pin[3])
-    fin.close()
-    return [fam, samp, fa, mo]
-
-
-def get_inh_rate(called):
-    quads = defaultdict(list)
-
-    fam_file = args.fam
-    [fam, samp, fa, mo] = fam_info_readin(fam_file)
-
-    for sample in called:
-        if 'fa' in sample or 'mo' in sample or 'p1' in sample or 's1' in sample:
-            quad, member = sample.split('.')
-            quads[quad].append(member)
-        else:
-            quad = fam[samp.index(sample)]
-            if sample in fa:
-                member = 'fa'
-            elif sample in mo:
-                member = 'mo'
-            else:
-                member = 'pb'
-
-    n_called = len([s for s in called if _is_child(s)])
-
-    n_inh = 0
-    for quad, members in quads.items():
-        if 'fa' in members or 'mo' in members:
-            if 'p1' in members:
-                n_inh += 1
-            if 's1' in members:
-                n_inh += 1
-            if 'pb' in members:
-                n_inh += 1
-
-    return n_inh / n_called
-
-
 def process_metadata(variants, bed=False, batch_list=None):
     if bed:
-        samples = [s.strip() for s in batch_list.readlines()]
+        n_samples = len([s.strip() for s in batch_list.readlines()])
     else:
-        samples = list(variants.header.samples)
+        n_samples = len(variants.header.samples)
 
     # parents = [s for s in samples if _is_parent(s)]
     # children = [s for s in samples if _is_child(s)]
@@ -200,7 +119,12 @@ def process_metadata(variants, bed=False, batch_list=None):
             called = svu.get_called_samples(variant)
             name = variant.id
             svtype = variant.info['SVTYPE']
-            svlen = variant.info['SVLEN']
+            if svtype == 'BND':
+                svlen = -1
+            elif svtype == 'INS':
+                svlen = variant.info.get('SVLEN', -1)
+            else:
+                svlen = end - start
 
         # Only use start/end for seg dup coverage. if it's a tloc,
         # we don't care so we can just set its "END" to pos + 1
@@ -208,7 +132,7 @@ def process_metadata(variants, bed=False, batch_list=None):
             end = start + 1
 
         # Calculate VF
-        vf = len(called) / len(samples)
+        vf = len(called) / n_samples
 
         # Increment counts of variants per sample
         for s in called:
@@ -250,54 +174,6 @@ def process_metadata(variants, bed=False, batch_list=None):
     return metadata
 
 
-def add_pesr(evidence):
-    evidence['PESR_called_median'] = (evidence['PE_called_median'] +
-                                      evidence['SR_sum_called_median'])
-    evidence['PESR_bg_median'] = (evidence['PE_bg_median'] +
-                                  evidence['SR_sum_bg_median'])
-    evidence['PESR_bg_frac'] = (evidence['PESR_bg_median'] /
-                                (evidence['PESR_bg_median'] + evidence['PESR_called_median']))
-
-    def calc_p(row):
-        pval = ss.poisson.cdf(row.PESR_bg_median, row.PESR_called_median)
-        return np.abs(-np.log10(pval))
-
-    evidence['PESR_log_pval'] = evidence.apply(calc_p, axis=1)
-
-    one_sided_mask = (evidence.PESR_bg_median > evidence.PESR_called_median)
-    evidence.loc[one_sided_mask, 'PESR_log_pval'] = 0
-
-    return evidence
-
-
-def make_columns():
-    PE_names = ('log_pval called_median bg_median bg_frac').split()
-    PESR_names = ['PESR_' + name for name in PE_names]
-    PE_names = ['PE_' + name for name in PE_names]
-
-    SR_names = ('posA_log_pval posB_log_pval sum_log_pval '
-                'posA_called_median posB_called_median sum_called_median '
-                'posA_bg_median posB_bg_median sum_bg_median '
-                'posA_bg_frac posB_bg_frac sum_bg_frac '
-                'posA_pos posB_pos').split()
-    SR_names = ['SR_' + name for name in SR_names]
-
-    BAF_names = ('delstat snp_ratio del_loglik dupstat KS_stat KS_log_pval '
-                 'total_case_snps total_snps n_nonROH_cases n_samples '
-                 'mean_control_snps n_nonROH_controls n_controls').split()
-    BAF_names = ['BAF_' + name for name in BAF_names]
-
-    RD_names = ('Median_Power P 2ndMaxP Model Median_Rank Median_Separation '
-                'log_pval log_2ndMaxP').split()
-    RD_names = ['RD_' + name for name in RD_names]
-
-    #  metadata_names = 'name svtype svsize parental_vf child_vf inh_rate'.split()
-    metadata_names = 'name chrom svtype svsize vf poor_region_cov rmsk is_outlier_specific'.split()
-
-    return (metadata_names + PE_names + SR_names + PESR_names + RD_names +
-            BAF_names)
-
-
 def main():
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -307,10 +183,10 @@ def main():
     parser.add_argument('-b', '--BAFtest')
     parser.add_argument('-s', '--SRtest')
     parser.add_argument('-p', '--PEtest')
+    parser.add_argument('-e', '--PESRtest')
     parser.add_argument('--batch-list', type=argparse.FileType('r'))
     parser.add_argument('--segdups', required=True)
     parser.add_argument('--rmsk', required=True)
-    parser.add_argument('--fam')
     parser.add_argument('-d', '--bed', action='store_true', default=False)
     parser.add_argument('fout')
     args = parser.parse_args()
@@ -322,7 +198,7 @@ def main():
         dtypes = 'RD BAF'.split()
     else:
         variants = pysam.VariantFile(args.variants)
-        dtypes = 'PE SR RD BAF'.split()
+        dtypes = 'RD PE SR BAF PESR'.split()
 
     metadata = process_metadata(variants, args.bed, args.batch_list)
 
@@ -356,7 +232,8 @@ def main():
         df = pd.read_table(dtable)
 
         df = preprocess(df, dtype)
-        df = df.rename(columns=lambda c: dtype + '_' + c if c != 'name' else c)
+        if dtype == 'RD':
+            df = df.rename(columns=lambda c: dtype + '_' + c if c != 'name' else c)
         df = df.set_index('name')
         evidence.append(df)
 
@@ -364,16 +241,10 @@ def main():
     evidence = metadata.join(evidence, how='outer', sort=True)
     evidence = evidence.reset_index().rename(columns={'index': 'name'})
 
-    has_petest = (getattr(args, 'PEtest') is not None)
-    has_srtest = (getattr(args, 'SRtest') is not None)
-    if not args.bed and has_petest and has_srtest:
-        evidence = add_pesr(evidence)
-
     # Replace infinite log-pvals
     LOG_CEIL = 300
     evidence = evidence.replace(np.inf, LOG_CEIL)
 
-    evidence = evidence.reindex(columns=make_columns())
     evidence.to_csv(args.fout, index=False, sep='\t', na_rep='NA')
 
 

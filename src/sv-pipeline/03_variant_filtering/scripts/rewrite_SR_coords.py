@@ -14,9 +14,9 @@ import pandas as pd
 
 def rewrite_SR_coords(record, metrics, pval_cutoff, bg_cutoff):
     row = metrics.loc[record.id]
-    if row.SR_sum_log_pval >= pval_cutoff and row.SR_sum_bg_frac >= bg_cutoff:
-        record.pos = int(row.SR_posA_pos)
-        record.stop = int(row.SR_posB_pos)
+    if row.sum_SRQ >= pval_cutoff and row.sum_SRCS >= bg_cutoff:
+        record.pos = int(row.posA_pos)
+        record.stop = int(row.posB_pos)
         if record.info['SVTYPE'] == 'INV':
             record.pos, record.stop = sorted([record.pos, record.stop])
         if record.info['SVTYPE'] not in 'INS BND'.split():
@@ -51,14 +51,14 @@ def main():
     # Load cutoffs
     cutoffs = pd.read_table(args.cutoffs)
     pval_cutoff = cutoffs.loc[(cutoffs['test'] == 'SR1') &
-                              (cutoffs['metric'] == 'SR_sum_log_pval'), 'cutoff'].iloc[0]
+                              (cutoffs['metric'] == 'sum_SRQ'), 'cutoff'].iloc[0]
     bg_cutoff = cutoffs.loc[(cutoffs['test'] == 'SR1') &
-                            (cutoffs['metric'] == 'SR_sum_bg_frac'), 'cutoff'].iloc[0]
+                            (cutoffs['metric'] == 'sum_SRCS'), 'cutoff'].iloc[0]
 
     for record in records:
         rewrite_SR_coords(record, metrics, pval_cutoff, bg_cutoff)
         if record.info['SVTYPE'] in 'DEL DUP'.split():
-            if record.info['SVLEN'] < 50:
+            if 'SVLEN' not in record.info or record.info['SVLEN'] < 50:
                 continue
         fout.write(record)
 

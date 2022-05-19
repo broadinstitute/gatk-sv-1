@@ -24,9 +24,9 @@ cutoff = read.table(cutoff_file, sep='\t', header=T)
 metrics = read.table(metrics_file, sep='\t', header=T)
 scores = read.table(scores_file, sep='\t', header=T)
 
-SR_sum_log_pval = cutoff[cutoff$metric=='SR_sum_log_pval',2]
-PE_log_pval = cutoff[cutoff$metric=='PE_log_pval',2]
-PESR_log_pval = cutoff[cutoff$metric=='PESR_log_pval',2]
+SR_sum_log_pval = cutoff[cutoff$metric=='SR_sum_log_pval',3]
+PE_log_pval = cutoff[cutoff$metric=='PE_log_pval',3]
+PESR_log_pval = cutoff[cutoff$metric=='PESR_log_pval',3]
 
 SR_sum_log_pval_kept_svid = metrics[!is.na(metrics$SR_sum_log_pval) & metrics$SR_sum_log_pval>SR_sum_log_pval,]
 PE_log_pval_kept_svid = metrics[!is.na(metrics$PE_log_pval) & metrics$PE_log_pval>PE_log_pval,]

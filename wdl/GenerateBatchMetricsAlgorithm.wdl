@@ -144,10 +144,11 @@ workflow GenerateBatchMetricsAlgorithm {
 		input:
 			vcf = vcf,
 			prefix = "~{batch}.~{algorithm}",
-			petest = PETest.petest,
-			srtest = SRTest.srtest,
+			petest = VcfToMetricsFile.petest,
+			srtest = VcfToMetricsFile.srtest,
+			baftest = VcfToMetricsFile.baftest,
+			pesrtest = VcfToMetricsFile.pesrtest,
 			rdtest = RDTest.rdtest,
-			baftest = BAFTest.baftest,
 			segdups = segdups,
 			rmsk = rmsk,
 			sv_pipeline_docker = sv_pipeline_docker,
@@ -203,13 +204,14 @@ task GetMaleOnlyVariantIDs {
 task VcfToMetricsFile {
 	input {
 		File vcf
+		String prefix
 		String sv_pipeline_docker
 		RuntimeAttr? runtime_attr_override
 	}
 
 	RuntimeAttr default_attr = object {
 															 cpu_cores: 1,
-															 mem_gb: 7.5,
+															 mem_gb: 1.0,
 															 disk_gb: 10,
 															 boot_disk_gb: 10,
 															 preemptible_tries: 3,
@@ -218,18 +220,18 @@ task VcfToMetricsFile {
 	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
 
 	output {
-		File metrics = "~{prefix}.aggregated.metrics"
+		File srtest = "~{prefix}.sr.metrics"
+		File petest = "~{prefix}.pe.metrics"
+		File baftest = "~{prefix}.baf.metrics"
+		File pesrtest = "~{prefix}.pesr.metrics"
 	}
 	command <<<
-		/opt/sv-pipeline/02_evidence_assessment/02e_metric_aggregation/scripts/aggregate.py \
-		-v ~{vcf} \
-		~{"-r " + rdtest} \
-		~{"-b " + baftest} \
-		~{"-p " + petest} \
-		~{"-s " + srtest} \
-		--segdups ~{segdups} \
-		--rmsk ~{rmsk} \
-		aggregated.metrics
+		/opt/sv-pipeline/scripts/vcf_to_metrics.py \
+			--vcf ~{vcf} \
+			--pe-out ~{prefix}.pe.metrics \
+			--sr-out ~{prefix}.sr.metrics \
+			--pesr-out ~{prefix}.pesr.metrics \
+			--baf-out ~{prefix}.baf.metrics
 	>>>
 	runtime {
 		cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
@@ -250,6 +252,7 @@ task AggregateTests {
 		File? baftest
 		File? petest
 		File? srtest
+		File? pesrtest
 		File segdups
 		File rmsk
 		String sv_pipeline_docker
@@ -276,6 +279,7 @@ task AggregateTests {
 			~{"-b " + baftest} \
 			~{"-p " + petest} \
 			~{"-s " + srtest} \
+			~{"-e " + pesrtest} \
 			--segdups ~{segdups} \
 			--rmsk ~{rmsk} \
 			aggregated.metrics

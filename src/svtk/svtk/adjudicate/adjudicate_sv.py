@@ -28,8 +28,8 @@ def adjudicate_BAF(metrics, labeler, name):
         name), index=False, sep='\t')
     testable.to_csv('{0}_DEL_testable.txt'.format(name), index=False, sep='\t')
 
-    features = 'BAF_snp_ratio BAF_del_loglik'.split()
-    cutoffs = {'indep': ['BAF_snp_ratio'], 'dep': ['BAF_del_loglik']}
+    features = 'BAFDEL'.split()
+    cutoffs = {'indep': [], 'dep': ['BAFDEL']}
 
     del_cutoffs = rf_classify(metrics, trainable, testable, features,
                               labeler, cutoffs, name)
@@ -44,8 +44,8 @@ def adjudicate_BAF(metrics, labeler, name):
     trainable.to_csv('{0}_DUP_trainable.txt'.format(
         name), index=False, sep='\t')
     testable.to_csv('{0}_DUP_testable.txt'.format(name), index=False, sep='\t')
-    features = 'BAF_KS_stat BAF_KS_log_pval'.split()
-    cutoffs = {'indep': ['BAF_KS_stat'], 'dep': ['BAF_KS_log_pval']}
+    features = 'BAFDUP'.split()
+    cutoffs = {'indep': [], 'dep': ['BAFDUP']}
 
     dup_cutoffs = rf_classify(metrics, trainable, testable, features,
                               labeler, cutoffs, name)
@@ -83,11 +83,14 @@ def adjudicate_SR1(metrics):
     trainable = testable.loc[(testable.poor_region_cov < 0.3) &
                              ~testable.chrom.isin(ALLOSOMES) &
                              ~testable.is_outlier_specific]
-    features = ['SR_sum_log_pval', 'SR_sum_bg_frac']
-    cutoffs = {'indep': ['SR_sum_log_pval'], 'dep': ['SR_sum_bg_frac']}
+    features = ['sum_SRQ', 'sum_SRCS']
+    cutoffs = {'indep': ['sum_SRQ'], 'dep': ['sum_SRCS']}
     labeler = labelers.SR1TrainingLabeler()
     trainable['label'] = labeler.label(trainable)
     trainable.to_csv('SR1_trainable.txt', index=False, sep='\t')
+    print(trainable.loc[trainable.label == 'Pass'].shape)
+    print(trainable.loc[trainable.label == 'Fail'].shape)
+    print(trainable.loc[trainable.label == 'Unlabeled'].shape)
 
     cutoffs = rf_classify(metrics, trainable, testable, features,
                           labeler, cutoffs, 'SR1_prob')
@@ -206,8 +209,8 @@ def adjudicate_PE(metrics):
     trainable = testable.loc[(testable.poor_region_cov < 0.3) &
                              ~testable.chrom.isin(ALLOSOMES) &
                              ~testable.is_outlier_specific]
-    features = ['PE_log_pval', 'PE_bg_frac']
-    cutoffs = {'indep': ['PE_log_pval'], 'dep': ['PE_bg_frac']}
+    features = ['PEQ', 'PECS']
+    cutoffs = {'indep': ['PEQ'], 'dep': ['PECS']}
     labeler = labelers.PETrainingLabeler()
 
     trainable['label'] = labeler.label(trainable)
@@ -224,37 +227,13 @@ def adjudicate_PE(metrics):
     return cutoffs
 
 
-def adjudicate_SR2(metrics):
-    testable = metrics.loc[~metrics.name.str.contains('_depth_')]
-    trainable = testable.loc[(testable.svsize >= 5000) &
-                             (testable.poor_region_cov < 0.3) &
-                             ~testable.chrom.isin(ALLOSOMES) &
-                             ~testable.is_outlier_specific]
-    features = ['SR_sum_log_pval', 'SR_sum_bg_frac']
-    cutoffs = {'indep': ['SR_sum_log_pval'], 'dep': ['SR_sum_bg_frac']}
-    labeler = labelers.SR2TrainingLabeler()
-
-    trainable['label'] = labeler.label(trainable)
-    trainable.to_csv('SR2_trainable.txt', index=False, sep='\t')
-
-    cutoffs = rf_classify(metrics, trainable, testable, features,
-                          labeler, cutoffs, 'SR2_prob')
-    cutoffs.to_csv('SR2_cutoffs.txt', index=False, sep='\t')
-
-    cutoffs['test'] = 'SR2'
-    cutoffs['svtype'] = 'CNV'
-    cutoffs['algtype'] = 'PESR'
-
-    return cutoffs
-
-
 def adjudicate_PESR(metrics):
     testable = metrics.loc[~metrics.name.str.contains('_depth_')]
     trainable = testable.loc[(testable.poor_region_cov < 0.3) &
                              ~testable.chrom.isin(ALLOSOMES) &
                              ~testable.is_outlier_specific]
-    features = ['PESR_log_pval', 'PESR_bg_frac']
-    cutoffs = {'indep': ['PESR_log_pval'], 'dep': ['PESR_bg_frac']}
+    features = ['PESRQ', 'PESRCS']
+    cutoffs = {'indep': ['PESRQ'], 'dep': ['PESRCS']}
     labeler = labelers.PESRTrainingLabeler()
 
     trainable['label'] = labeler.label(trainable)
@@ -333,7 +312,7 @@ def adjudicate_SV(metrics):
         metrics['chrom'] = metrics.name.str.split('_').str[-2]
 
     # Remove PE metrics from Manta insertions
-    PE_cols = [c for c in metrics.columns if c.startswith('PE_')]
+    PE_cols = ('PEQ', 'PECS')
     for col in PE_cols:
         metrics.loc[metrics.svtype == 'INS', col] = np.nan
 
