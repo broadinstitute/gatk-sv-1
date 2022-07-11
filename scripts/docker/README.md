@@ -43,3 +43,5 @@ Conda packages `termcolor` and `pprint` are assumed to be available.
 * `test_build_docker.ipynb` is for debugging and testing purposes
 
 * Use `update_json_docker.sh` to update dockers tags across all json parameter files
+
+* When building on Apple Silicon macs, ensure that Rosetta is installed: `softwareupdate --install-rosetta`
