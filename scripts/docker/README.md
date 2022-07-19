@@ -44,4 +44,4 @@ Conda packages `termcolor` and `pprint` are assumed to be available.
 
 * Use `update_json_docker.sh` to update dockers tags across all json parameter files
 
-* When building on Apple Silicon macs, ensure that Rosetta is installed: `softwareupdate --install-rosetta`
+* When building on Apple Silicon macs (newer macs with e.g. m1 or m2 chip), ensure that Rosetta is installed: `softwareupdate --install-rosetta`. Note that docker software is still somewhat unstable on these devices, so we cannot fully support them. We have had the most success by restricting docker desktop to 1 CPU (otherwise builds often churn forever without progress).
